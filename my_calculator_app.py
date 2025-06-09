@@ -101,7 +101,7 @@ with col2:
     )
     # st.slider可以创建一个滑动条输入
     x_range_input = st.slider(
-        "5. 第八种商品的价格范围",
+        "5. 最后一行商品的价格范围",
         min_value=0.0, max_value=1000.0, value=(200.0, 400.0)
     )
 
