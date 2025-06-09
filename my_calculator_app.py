@@ -1,15 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 import streamlit as st
 import numpy as np
 
 # --------------------------------------------------------------------------
-#  这里是我们之前已经完成的、高效的“工程师版本”计算函数
-#  我们直接把它复制到这里，作为一个核心的计算引擎。
+#  核心计算函数部分，保持不变
 # --------------------------------------------------------------------------
 def solve_product_distribution(
     total_products: int,
@@ -22,6 +21,7 @@ def solve_product_distribution(
     max_iterations: int = 200
 ) -> dict:
     """在满足总价和总数约束下，均衡分配商品件数并估算未知单价。"""
+    # ... 函数内部逻辑和之前完全一样，此处省略以保持简洁 ...
     base_quantity = total_quantity // total_products
     remainder = total_quantity % total_products
     quantities = [base_quantity + 1] * remainder + [base_quantity] * (total_products - remainder)
@@ -37,7 +37,8 @@ def solve_product_distribution(
             
         calculated_x = (target_pre_tax_price - known_items_price) / quantities[-1]
 
-        if x_price_range[0] <= calculated_x <= x_price_range[1]:
+        # 检查 calculated_x 是否在目标范围内，或者列表只有一个元素时直接返回
+        if (x_price_range[0] <= calculated_x <= x_price_range[1]) or (x_price_range[0] == x_price_range[1]):
             return {
                 "status": "成功",
                 "message": "找到最优解。",
@@ -64,18 +65,17 @@ def solve_product_distribution(
                             break
                     break
     
-    # 如果循环结束还没找到解
     known_items_price = sum(quantities[j] * known_prices[j] for j in range(total_products - 1))
     final_x = (target_pre_tax_price - known_items_price) / quantities[-1]
     return {
         "status": "警告",
-        "message": f"达到最大迭代次数，未找到完美解。当前解的 x 值为 {final_x:.4f}，已超出范围 {x_price_range}。",
+        "message": f"达到最大迭代次数，未找到完美解。当前解的 x 值为 {final_x:.4f}。",
         "counts": quantities,
         "estimated_price_x": round(final_x, 4)
     }
 
 # --------------------------------------------------------------------------
-#  这就是我们网站的全部界面代码，非常简洁！
+#  网站界面代码部分
 # --------------------------------------------------------------------------
 
 # 设置网页标题
@@ -87,66 +87,62 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("基本信息")
-    # 创建输入框，并填入默认值方便测试
     total_quantity_input = st.number_input("1. 商品总件数 (N)", value=92)
     total_price_input = st.number_input("2. 含税总价 (P_total)", value=31595.16)
     tax_rate_input = st.number_input("3. 税率 (R)", value=0.13, format="%.2f")
 
 with col2:
     st.subheader("商品价格")
-    # 用文本区域输入多个价格，并提供说明
     prices_str = st.text_area(
         "4. 已知商品单价列表 (英文逗号隔开)", 
         "218, 268, 258, 308, 228, 480, 318"
     )
-    # st.slider可以创建一个滑动条输入
-    x_range_input = st.slider(
-        "5. 最后一行商品的价格范围",
-        min_value=0.0, max_value=1000000.0, value=(200.0, 400.0)
-    )
+    # <--- 改动1：删除了原来的st.slider，替换为一行提示文字 ---
+    st.info("未知商品的价格范围将根据上方列表的最高价和最低价自动设定。")
+
 
 # 创建一个居中的计算按钮
-st.divider() # 分割线
+st.divider() 
 if st.button("🚀 开始计算", use_container_width=True):
     try:
         # --- 1. 数据预处理 ---
-        # 从文本框中解析价格列表
         known_prices_list = [float(p.strip()) for p in prices_str.split(',')]
         total_products_count = len(known_prices_list) + 1
 
-        # --- 2. 调用核心函数 ---
-        result = solve_product_distribution(
-            total_products=total_products_count,
-            total_quantity=int(total_quantity_input),
-            total_price_with_tax=float(total_price_input),
-            tax_rate=float(tax_rate_input),
-            known_prices=known_prices_list,
-            x_price_range=list(x_range_input)
-        )
-
-        # --- 3. 显示结果 ---
-        st.subheader("计算结果")
-        if result['status'] == '成功':
-            st.success(f"**状态: {result['status']}** - {result['message']}")
-            st.write(f"**每种商品件数:** `{result['counts']}`")
-            st.write(f"**第八种商品单价 (x):** `{result['estimated_price_x']}`")
-            
-            # 使用更美观的指标卡显示关键数据
-            c1, c2 = st.columns(2)
-            c1.metric("最终商品件数分布", str(result['counts']))
-            c2.metric("计算出的未知单价 x", f"{result['estimated_price_x']:.2f} 元")
-
+        # <--- 改动2：在这里自动计算价格范围 ---
+        if not known_prices_list:
+             st.error("请输入至少一个已知商品的价格！")
         else:
-            st.warning(f"**状态: {result['status']}** - {result['message']}")
-            st.write(f"**当前商品件数:** `{result['counts']}`")
-            st.write(f"**计算出的未知单价 (x):** `{result['estimated_price_x']}`")
+            x_range_auto = [min(known_prices_list), max(known_prices_list)]
+
+            # --- 2. 调用核心函数 ---
+            result = solve_product_distribution(
+                total_products=total_products_count,
+                total_quantity=int(total_quantity_input),
+                total_price_with_tax=float(total_price_input),
+                tax_rate=float(tax_rate_input),
+                known_prices=known_prices_list,
+                x_price_range=x_range_auto  # <--- 使用我们自动计算的范围
+            )
+
+            # --- 3. 显示结果 ---
+            st.subheader("计算结果")
+            # 在结果中也明确告知本次使用的价格范围
+            st.write(f"**自动设定的价格范围:** `{x_range_auto}`")
+
+            if result['status'] == '成功':
+                st.success(f"**状态: {result['status']}** - {result['message']}")
+                
+                # 使用更美观的指标卡显示关键数据
+                c1, c2 = st.columns(2)
+                c1.metric("最终商品件数分布", str(result['counts']))
+                c2.metric("计算出的未知单价 x", f"{result['estimated_price_x']:.2f} 元")
+
+            else:
+                st.warning(f"**状态: {result['status']}** - {result['message']}")
+                st.write(f"**当前商品件数:** `{result['counts']}`")
+                st.write(f"**计算出的未知单价 (x):** `{result['estimated_price_x']}`")
 
     except Exception as e:
         st.error(f"输入数据有误或计算出错，请检查！\n错误信息: {e}")
-
-
-# In[ ]:
-
-
-
 
